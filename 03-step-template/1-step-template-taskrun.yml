@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: step-template-taskrun
+spec:
+  serviceAccountName: pipeline
+  taskRef:
+    name: step-template-task
+  params:
+    - name: message
+      value: "Hello World"
+  workspaces:
+  - name: script-folder
+    emptyDir: {}

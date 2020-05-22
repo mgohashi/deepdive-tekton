@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-workspace
+spec:
+  resources:
+    requests:
+      storage: 1G
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: simple-pipeline-template
+spec:
+  params:
+  - name: gitrevision
+    description: The git revision
+    default: master
+  - name: gitrepositoryurl
+    description: The git repository url
+  - name: contenttype
+    description: The Content-Type of the event
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: simple-pipelinerun-
+    spec:
+      serviceAccountName: pipeline
+      pipelineRef:
+        name: simple-pipeline
+      resources:
+      - name: app-git
+        resourceSpec:
+          type: git
+          params:
+            - name: url
+              value: $(params.gitrepositoryurl)
+      workspaces:
+      - name: shared-workspace
+        persistentVolumeClaim:
+          claimName: shared-workspace

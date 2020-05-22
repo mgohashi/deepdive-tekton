@@ -1,0 +1,17 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: resource-task
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+  steps:
+    - name: list
+      image: centos
+      command:
+        - bash
+      args: 
+        - -c
+        - 'ls /workspace/source'

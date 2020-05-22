@@ -1,0 +1,173 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: complex-pipeline
+spec:
+  params:
+    - name: gitrepositoryurl
+      type: string
+      description: Git Repo
+    - name: gitrevision
+      type: string
+      description: Git Repo
+      default: master
+  workspaces:
+    - name: maven-settings
+    - name: shared-workspace
+    - name: shared-repo
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.gitrepositoryurl)
+        - name: revision
+          value: $(params.gitrevision)
+        - name: deleteExisting
+          value: "true"
+        - name: depth
+          value: "0"
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: build
+      taskRef:
+        name: maven
+      params:
+        - name: GOALS
+          value:
+            - clean
+            - compile
+        - name: MAVEN_MIRROR_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
+      runAfter:
+        - git-clone
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: shared-workspace
+        - name: local-repo
+          workspace: shared-repo
+    - name: tests
+      taskRef:
+        name: maven
+      params:
+        - name: GOALS
+          value:
+            - test
+        - name: MAVEN_MIRROR_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
+      runAfter:
+        - build
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: shared-workspace
+        - name: local-repo
+          workspace: shared-repo
+    - name: static-code-analysis
+      taskRef:
+        name: maven
+      params:
+        - name: GOALS
+          value:
+            - 'sonar:sonar'
+            - -Dsonar.projectKey=basic-quarkus-app
+            - -Dsonar.host.url=http://my-sonarqube-cicd-tools.apps.mw.consulting-rh-br.com
+            - -Dsonar.login=39e04f52215066499702c239c0d40162aeafea9c
+        - name: MAVEN_MIRROR_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
+      runAfter:
+        - build
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: shared-workspace
+        - name: local-repo
+          workspace: shared-repo
+    - name: deploy-nexus
+      taskRef:
+        name: maven
+      params:
+        - name: GOALS
+          value:
+            - deploy
+            - -DskipTests
+        - name: MAVEN_MIRROR_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
+        - name: MVN_RELEASES_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-releases/
+        - name: MVN_SNAPSHOT_URL
+          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-snapshots/
+        - name: MVN_REPO_ID
+          value: nexus
+        - name: MVN_REPO_USERNAME
+          value: build
+        - name: MVN_REPO_PASSWORD
+          value: build
+      runAfter:
+        - tests
+        - static-code-analysis
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: shared-workspace
+        - name: local-repo
+          workspace: shared-repo
+    - name: build-package
+      taskRef:
+        name: tar-quarkus
+      runAfter:
+        - deploy-nexus
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: build-image
+      taskRef:
+        name: openshift-client
+      params:
+        - name: ARGS
+          value:
+            - start-build
+            - basic-quarkus-app
+            - --from-archive=/workspace/source/target/package.tar
+            - --follow
+            - --wait
+      runAfter:
+        - build-package
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: setup-app
+      taskRef:
+        name: openshift-client
+      params:
+        - name: ARGS
+          value:
+            - apply
+            - -f 
+            - /workspace/source/deployment
+      runAfter:
+        - build-image
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: deploy
+      taskRef:
+        name: openshift-client
+      params:
+        - name: ARGS
+          value:
+            - rollout
+            - latest 
+            - basic-quarkus-app
+      runAfter:
+        - setup-app
+      workspaces:
+        - name: source
+          workspace: shared-workspace

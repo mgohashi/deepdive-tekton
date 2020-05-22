@@ -1,0 +1,332 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone
+spec:
+  workspaces:
+    - name: output
+      description: The git repo will be cloned onto the volume backing this workspace
+  params:
+    - name: url
+      description: git url to clone
+      type: string
+    - name: revision
+      description: git revision to checkout (branch, tag, sha, ref…)
+      type: string
+      default: master
+    - name: refspec
+      description: (optional) git refspec to fetch before checking out revision
+      default: ""
+    - name: submodules
+      description: defines if the resource should initialize and fetch the submodules
+      type: string
+      default: "true"
+    - name: depth
+      description: performs a shallow clone where only the most recent commit(s) will be fetched
+      type: string
+      default: "1"
+    - name: sslVerify
+      description: defines if http.sslVerify should be set to true or false in the global git config
+      type: string
+      default: "true"
+    - name: subdirectory
+      description: subdirectory inside the "output" workspace to clone the git repo into
+      type: string
+      default: ""
+    - name: deleteExisting
+      description: clean out the contents of the repo's destination directory (if it already exists) before trying to clone the repo there
+      type: string
+      default: "false"
+    - name: httpProxy
+      description: git HTTP proxy server for non-SSL requests
+      type: string
+      default: ""
+    - name: httpsProxy
+      description: git HTTPS proxy server for SSL requests
+      type: string
+      default: ""
+    - name: noProxy
+      description: git no proxy - opt out of proxying HTTP/HTTPS requests
+      type: string
+      default: ""
+  results:
+    - name: commit
+      description: The precise commit SHA that was fetched by this Task
+  steps:
+    - name: clone
+      image: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.12.1
+      script: |
+        CHECKOUT_DIR="$(workspaces.output.path)/$(params.subdirectory)"
+
+        cleandir() {
+          # Delete any existing contents of the repo directory if it exists.
+          #
+          # We don't just "rm -rf $CHECKOUT_DIR" because $CHECKOUT_DIR might be "/"
+          # or the root of a mounted volume.
+          if [[ -d "$CHECKOUT_DIR" ]] ; then
+            # Delete non-hidden files and directories
+            rm -rf "$CHECKOUT_DIR"/*
+            # Delete files and directories starting with . but excluding ..
+            rm -rf "$CHECKOUT_DIR"/.[!.]*
+            # Delete files and directories starting with .. plus any other character
+            rm -rf "$CHECKOUT_DIR"/..?*
+          fi
+        }
+
+        if [[ "$(params.deleteExisting)" == "true" ]] ; then
+          cleandir
+        fi
+
+        test -z "$(params.httpProxy)" || export HTTP_PROXY=$(params.httpProxy)
+        test -z "$(params.httpsProxy)" || export HTTPS_PROXY=$(params.httpsProxy)
+        test -z "$(params.noProxy)" || export NO_PROXY=$(params.noProxy)
+
+        /ko-app/git-init \
+          -url "$(params.url)" \
+          -revision "$(params.revision)" \
+          -refspec "$(params.refspec)" \
+          -path "$CHECKOUT_DIR" \
+          -sslVerify="$(params.sslVerify)" \
+          -submodules="$(params.submodules)" \
+          -depth "$(params.depth)"
+        cd "$CHECKOUT_DIR"
+        RESULT_SHA="$(git rev-parse HEAD | tr -d '\n')"
+        EXIT_CODE="$?"
+        if [ "$EXIT_CODE" != 0 ]
+        then
+          exit $EXIT_CODE
+        fi
+        # Make sure we don't add a trailing newline to the result!
+        echo -n "$RESULT_SHA" > $(results.commit.path)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: maven
+spec:
+  params:
+    - default:
+        - package
+      description: maven goals to run
+      name: GOALS
+      type: array
+    - default: ""
+      description: The Maven bucketrepo- mirror
+      name: MAVEN_MIRROR_URL
+      type: string
+    - default: ""
+      description: The username for the proxy server
+      name: PROXY_USER
+      type: string
+    - default: ""
+      description: The password for the proxy server
+      name: PROXY_PASSWORD
+      type: string
+    - default: ""
+      description: Port number for the proxy server
+      name: PROXY_PORT
+      type: string
+    - default: ""
+      description: Proxy server Host
+      name: PROXY_HOST
+      type: string
+    - default: ""
+      description: Non proxy server host
+      name: PROXY_NON_PROXY_HOSTS
+      type: string
+    - default: http
+      description: Protocol for the proxy ie http or https
+      name: PROXY_PROTOCOL
+      type: string
+    - default: local-repo
+      description: Default local repository
+      name: LOCAL_REPO_DIR
+      type: string
+    - default: ""
+      description: Maven releases repository URL
+      name: MVN_RELEASES_URL
+      type: string
+    - default: ""
+      description: Maven snapshot repository URL
+      name: MVN_SNAPSHOT_URL
+      type: string
+    - default: ""
+      description: Maven repository ID
+      name: MVN_REPO_ID
+      type: string
+    - default: ""
+      description: Maven repository Username
+      name: MVN_REPO_USERNAME
+      type: string
+    - default: ""
+      description: Maven repository Password
+      name: MVN_REPO_PASSWORD
+      type: string
+  steps:
+    - image: registry.access.redhat.com/ubi8/ubi-minimal:latest
+      name: mvn-settings
+      resources: {}
+      script: |
+        #!/usr/bin/env bash
+
+        [[ -f $(workspaces.maven-settings.path)/settings.xml ]] && \
+        echo 'using existing $(workspaces.maven-settings.path)/settings.xml' && \
+        cat $(workspaces.maven-settings.path)/settings.xml && exit 0
+
+        cat > $(workspaces.maven-settings.path)/settings.xml <<EOF
+        <settings>
+          <localRepository>$(workspaces.local-repo.path)</localRepository>
+          <mirrors>
+            <!-- The mirrors added here are generated from environment variables. Don't change. -->
+            <!-- ### mirrors from ENV ### -->
+          </mirrors>
+          <proxies>
+            <!-- The proxies added here are generated from environment variables. Don't change. -->
+            <!-- ### HTTP proxy from ENV ### -->
+          </proxies>
+          <profiles>
+            <profile>
+              <id>custom</id>
+              <properties>
+                <!-- ### Maven releases URL from ENV ### -->
+                <!-- ### Maven snapshot URL from ENV ### -->
+              </properties>
+            </profile>
+          </profiles>
+          <activeProfiles>
+            <activeProfile>custom</activeProfile>
+          </activeProfiles>
+          <!-- ### Servers from ENV ### -->
+        </settings>
+        EOF
+
+        mvn_release_url=""
+        if [ -n "$(params.MVN_RELEASES_URL)" ]; then
+            mvn_release_url="<nexus.release.repository.url>$(params.MVN_RELEASES_URL)</nexus.release.repository.url>"
+            sed -i "s|<!-- ### Maven releases URL from ENV ### -->|$mvn_release_url|" $(workspaces.maven-settings.path)/settings.xml
+        fi
+
+        mvn_snapshot_url=""
+        if [ -n "$(params.MVN_SNAPSHOT_URL)" ]; then
+            mvn_snapshot_url="<nexus.snapshot.repository.url>$(params.MVN_SNAPSHOT_URL)</nexus.snapshot.repository.url>"
+            sed -i "s|<!-- ### Maven snapshot URL from ENV ### -->|$mvn_snapshot_url|" $(workspaces.maven-settings.path)/settings.xml
+        fi
+
+        servers=""
+        if [ -n "$(params.MVN_REPO_ID)" -a -n "$(params.MVN_REPO_USERNAME)" -a -n "$(params.MVN_REPO_USERNAME)" ]; then
+            servers="<servers>\
+              <server>\
+                <id>$(params.MVN_REPO_ID)</id>\
+                <username>$(params.MVN_REPO_USERNAME)</username>\
+                <password>$(params.MVN_REPO_PASSWORD)</password>\
+              </server>\
+            </servers>"
+            sed -i "s|<!-- ### Servers from ENV ### -->|$servers|" $(workspaces.maven-settings.path)/settings.xml
+        fi
+
+        xml=""
+        if [ -n "$(params.PROXY_HOST)" -a -n "$(params.PROXY_PORT)" ]; then
+          xml="$xml
+            <proxy>\
+            <id>genproxy</id>\
+            <active>true</active>\
+            <protocol>$(params.PROXY_PROTOCOL)</protocol>\
+            <host>$(params.PROXY_HOST)</host>\
+            <port>$(params.PROXY_PORT)</port>"
+          if [ -n "$(params.PROXY_USER)" -a -n "$(params.PROXY_PASSWORD)" ]; then
+            xml="$xml\
+                <username>$(params.PROXY_USER)</username>\
+                <password>$(params.PROXY_PASSWORD)</password>"
+          fi
+          if [ -n "$(params.PROXY_NON_PROXY_HOSTS)" ]; then
+            xml="$xml\
+                <nonProxyHosts>$(params.PROXY_NON_PROXY_HOSTS)</nonProxyHosts>"
+          fi
+          xml="$xml\
+              </proxy>"
+          sed -i "s|<!-- ### HTTP proxy from ENV ### -->|$xml|" $(workspaces.maven-settings.path)/settings.xml
+        fi
+
+        if [ -n "$(params.MAVEN_MIRROR_URL)" ]; then
+          xml="    <mirror>\
+            <id>mirror.default</id>\
+            <url>$(params.MAVEN_MIRROR_URL)</url>\
+            <mirrorOf>central</mirrorOf>\
+          </mirror>"
+          sed -i "s|<!-- ### mirrors from ENV ### -->|$xml|" $(workspaces.maven-settings.path)/settings.xml
+        fi
+
+        [[ -f $(workspaces.maven-settings.path)/settings.xml ]] && cat $(workspaces.maven-settings.path)/settings.xml
+        [[ -f $(workspaces.maven-settings.path)/settings.xml ]] || echo skipping settings
+    - args:
+        - -s
+        - $(workspaces.maven-settings.path)/settings.xml
+        - $(params.GOALS)
+      command:
+        - /usr/bin/mvn
+      image: gcr.io/cloud-builders/mvn
+      name: mvn-goals
+      resources: {}
+      workingDir: $(workspaces.source.path)
+  workspaces:
+    - name: source
+    - name: maven-settings
+    - name: local-repo
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: clean-up-workspace
+spec:
+  steps:
+    - name: clean-all-current-files
+      image: centos
+      script: rm -rf /workspace/source/*; rm -rf /workspace/source/.??*
+  workspaces:
+    - name: source
+      mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: openshift-client
+spec:
+  params:
+    - default: oc $@
+      description: The OpenShift CLI arguments to run
+      name: SCRIPT
+      type: string
+    - default:
+        - help
+      description: The OpenShift CLI arguments to run
+      name: ARGS
+      type: array
+  workspaces:
+    - name: source
+      mountPath: /workspace/source
+  steps:
+    - args:
+        - $(params.ARGS)
+      image: quay.io/openshift/origin-cli:latest
+      name: oc
+      resources: {}
+      script: $(params.SCRIPT)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: tar-quarkus
+spec:
+  workspaces:
+    - name: source
+      mountPath: /workspace/source
+  steps:
+    - image: centos
+      name: tar
+      script: | 
+        #!/usr/bin/env bash
+
+        tar -cvf /workspace/source/target/package.tar -C \
+        /workspace/source/target \
+        $(find /workspace/source/target/ -name "*-runner.jar" -printf "%f ") \
+        lib

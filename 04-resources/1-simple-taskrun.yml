@@ -1,0 +1,15 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: resource-taskrun
+spec:
+  taskRef:
+    name: resource-task
+  resources:
+    inputs:
+    - name: source
+      resourceSpec:
+        type: git
+        params:
+          - name: url
+            value: https://github.com/mgo-dev-mode/basic-quarkus-app.git

@@ -1,0 +1,61 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-workspace
+spec:
+  resources:
+    requests:
+      storage: 1G
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+--- 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-repo
+spec:
+  resources:
+    requests:
+      storage: 1G
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: complex-pipeline-template
+spec:
+  params:
+    - name: gitrevision
+      description: The git revision
+      default: master
+    - name: gitrepositoryurl
+      description: The git repository url
+    - name: contenttype
+      description: The Content-Type of the event
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: complex-pipelinerun-
+      spec:
+        serviceAccountName: pipeline
+        pipelineRef:
+          name: complex-pipeline
+        params:
+          - name: gitrepositoryurl
+            value: $(params.gitrepositoryurl)
+          - name: gitrevision
+            value: $(params.gitrevision)
+        workspaces:
+          - name: maven-settings
+            emptyDir: {}
+          - name: shared-workspace
+            persistentVolumeClaim:
+              claimName: shared-workspace ## Should be a template here
+          - name: shared-repo
+            persistentVolumeClaim:
+              claimName: shared-repo

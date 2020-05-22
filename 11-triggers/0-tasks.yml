@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: dir-structure
+spec:
+  resources:
+    inputs:
+    - name: source
+      type: git
+  steps:
+  - name: ls
+    image: centos
+    script: ls -r "/workspace/source"
+  workspaces:
+  - name: source
+    mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cat-readme
+spec:
+  steps:
+  - name: cat-readme
+    image: centos
+    script: cat "/workspace/source/README.md"
+  workspaces:
+  - name: source
+    mountPath: /workspace/source

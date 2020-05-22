@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-workspace
+spec:
+  resources:
+    requests:
+      storage: 1G
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: simple-pipelinerun
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: simple-pipeline
+  resources:
+  - name: app-git
+    resourceSpec:
+      type: git
+      params:
+        - name: url
+          value: https://github.com/mgo-dev-mode/basic-quarkus-app.git
+  workspaces:
+  - name: shared-workspace
+    persistentVolumeClaim:
+      claimName: shared-workspace

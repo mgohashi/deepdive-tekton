@@ -1,0 +1,12 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: github-listener-interceptor
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: simple-trigger
+      bindings:
+        - name: simple-pipeline-binding
+      template:
+        name: simple-pipeline-template

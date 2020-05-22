@@ -1,0 +1,15 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: echo-task
+spec:
+  params:
+    - name: message
+      type: string
+  steps:
+    - name: echo
+      image: centos
+      command:
+        - echo
+      args: 
+        - $(params.message)

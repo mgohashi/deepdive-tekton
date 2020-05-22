@@ -1,0 +1,35 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: dir-structure
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+  params:
+  - name: subdirectory
+    description: Subdirectory inside "source" workspace that contains the README.md.
+    default: "."
+  steps:
+  - name: ls
+    image: centos
+    script: ls -r "/workspace/source/$(params.subdirectory)"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cat-readme
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+  params:
+  - name: subdirectory
+    description: Subdirectory inside "source" workspace that contains the README.md.
+    default: "."
+  steps:
+  - name: cat-readme
+    image: centos
+    script: cat "/workspace/source/$(params.subdirectory)/README.md"

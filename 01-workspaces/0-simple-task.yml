@@ -1,0 +1,30 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: simple-task
+spec:
+  params:
+    - name: message
+      type: string
+      default: "Default"
+  steps:
+    - name: create-python-script
+      image: centos
+      script: |
+        #!/bin/sh
+        cat > $(workspaces.script-folder.path)/main.py << EOF
+        import sys
+
+        print(f'Message: {sys.argv[1:]}')
+        EOF
+    - name: execute-python-script
+      image: python
+      command:
+        - python
+      args: 
+        - $(workspaces.script-folder.path)/main.py
+        - $(params.message)
+  workspaces:
+  - name: script-folder
+    description: The folder where we write the script to
+    mountPath: /workspace

@@ -1,0 +1,13 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: simple-taskrun
+spec:
+  taskRef:
+    name: simple-task
+  params:
+    - name: message
+      value: "Hello World"
+  workspaces:
+  - name: script-folder
+    emptyDir: {}

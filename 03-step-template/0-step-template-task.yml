@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: step-template-task
+spec:
+  stepTemplate:
+    image: centos
+    env:
+      - name: "SCRIPT_FILE"
+        value: "main.py"
+  params:
+    - name: message
+      type: string
+      default: "Default"
+  results:
+    - name: size-python-script
+      description: The size of the python script
+  steps:
+    - name: create-python-script
+      script: |
+        #!/bin/sh
+        cat > $(workspaces.script-folder.path)/${SCRIPT_FILE} << EOF
+        import sys
+
+        print(f'Message: {sys.argv[1:]}')
+        EOF
+        du -hs0 $(workspaces.script-folder.path)/${SCRIPT_FILE} >> /tekton/results/size-python-script
+    - name: execute-python-script
+      image: python
+      command:
+        - python
+      args: 
+        - "$(workspaces.script-folder.path)/$(SCRIPT_FILE)"
+        - $(params.message)
+  workspaces:
+  - name: script-folder
+    description: The folder where we write the script to
+    mountPath: /workspace

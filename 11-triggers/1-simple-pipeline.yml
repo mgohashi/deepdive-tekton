@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: simple-pipeline
+spec:
+  workspaces:
+    - name: shared-workspace
+  resources:
+    - name: app-git
+      type: git
+  tasks:
+    - name: list-dir
+      taskRef:
+        name: dir-structure
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      resources:
+        inputs:
+          - name: source
+            resource: app-git
+    - name: print-readme
+      taskRef:
+        name: cat-readme
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      runAfter:
+        - list-dir # required to ensure clone occurs before reading
