@@ -39,6 +39,7 @@ spec:
           value:
             - clean
             - compile
+            - package
         - name: MAVEN_MIRROR_URL
           value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
       runAfter:
@@ -75,9 +76,7 @@ spec:
         - name: GOALS
           value:
             - 'sonar:sonar'
-            - -Dsonar.projectKey=basic-quarkus-app
             - -Dsonar.host.url=http://my-sonarqube-cicd-tools.apps.mw.consulting-rh-br.com
-            - -Dsonar.login=39e04f52215066499702c239c0d40162aeafea9c
         - name: MAVEN_MIRROR_URL
           value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
       runAfter:
@@ -89,41 +88,23 @@ spec:
           workspace: shared-workspace
         - name: local-repo
           workspace: shared-repo
-    - name: deploy-nexus
+    - name: validate-quality-gate
       taskRef:
-        name: maven
+        name: validate-quality-gate
       params:
-        - name: GOALS
-          value:
-            - deploy
-            - -DskipTests
-        - name: MAVEN_MIRROR_URL
-          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-public/
-        - name: MVN_RELEASES_URL
-          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-releases/
-        - name: MVN_SNAPSHOT_URL
-          value: http://my-nexusrepo-sonatype-nexus-cicd-tools.apps.mw.consulting-rh-br.com/repository/maven-snapshots/
-        - name: MVN_REPO_ID
-          value: nexus
-        - name: MVN_REPO_USERNAME
-          value: build
-        - name: MVN_REPO_PASSWORD
-          value: build
+        - name: SONAR_URL
+          value: http://my-sonarqube-cicd-tools.apps.mw.consulting-rh-br.com
       runAfter:
-        - tests
         - static-code-analysis
       workspaces:
-        - name: maven-settings
-          workspace: maven-settings
         - name: source
           workspace: shared-workspace
-        - name: local-repo
-          workspace: shared-repo
     - name: build-package
       taskRef:
         name: tar-quarkus
       runAfter:
-        - deploy-nexus
+        - tests
+        - validate-quality-gate
       workspaces:
         - name: source
           workspace: shared-workspace

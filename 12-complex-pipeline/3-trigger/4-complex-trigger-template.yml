@@ -49,7 +49,8 @@ spec:
           - name: gitrepositoryurl
             value: $(params.gitrepositoryurl)
           - name: gitrevision
-            value: $(params.gitrevision)
+            #value: $(params.gitrevision)
+            value: master #If you have configured the webhook uncomment above comment and comment this one
         workspaces:
           - name: maven-settings
             emptyDir: {}
