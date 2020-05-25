@@ -276,19 +276,6 @@ spec:
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: clean-up-workspace
-spec:
-  steps:
-    - name: clean-all-current-files
-      image: centos
-      script: rm -rf /workspace/source/*; rm -rf /workspace/source/.??*
-  workspaces:
-    - name: source
-      mountPath: /workspace/source
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
   name: openshift-client
 spec:
   params:
