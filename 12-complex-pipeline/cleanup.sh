@@ -10,4 +10,4 @@ oc delete dc,svc,route basic-quarkus-app
 
 kubectl delete build --all
 
-kubectl delete -f $(dirname $0)/3-trigger/4-complex-trigger-template.yml
+kubectl delete -f $(dirname $0)/4-trigger/4-complex-trigger-template.yml

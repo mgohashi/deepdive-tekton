@@ -1,28 +1,4 @@
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: shared-workspace
-spec:
-  resources:
-    requests:
-      storage: 1G
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
---- 
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: shared-repo
-spec:
-  resources:
-    requests:
-      storage: 1G
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
----
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
 metadata:

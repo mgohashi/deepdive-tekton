@@ -1,0 +1,73 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: shared-workspace
+  spec:
+    resources:
+      requests:
+        storage: 1G
+    volumeMode: Filesystem
+    accessModes:
+      - ReadWriteOnce
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: shared-repo
+  spec:
+    resources:
+      requests:
+        storage: 1G
+    volumeMode: Filesystem
+    accessModes:
+      - ReadWriteOnce
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      build: basic-quarkus-app
+    name: basic-quarkus-app
+  spec:
+    failedBuildsHistoryLimit: 5
+    nodeSelector: null
+    output:
+      to:
+        kind: ImageStreamTag
+        name: basic-quarkus-app:latest
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: java:11
+          namespace: openshift
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers:
+    - github:
+        secret: cT7Brm1kqzO2kDWlx9o-
+      type: GitHub
+    - generic:
+        secret: PDcXQw4vzs2Nc95Wd3NB
+      type: Generic
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    generation: 1
+    labels:
+      build: basic-quarkus-app
+    name: basic-quarkus-app
+  spec:
+    lookupPolicy:
+      local: false
+    dockerImageRepository: image-registry.openshift-image-registry.svc:5000/basic-quarkus-app
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
